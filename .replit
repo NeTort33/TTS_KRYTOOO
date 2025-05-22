@@ -1,0 +1,33 @@
+modules = ["python-3.11"]
+
+[nix]
+channel = "stable-24_05"
+packages = ["ffmpeg-full", "libsndfile"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "TTS Flask Server"
+
+[[workflows.workflow]]
+name = "TTS Flask Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pip install flask torch numpy soundfile librosa werkzeug pathlib && python app.py"
+waitForPort = 5000
+
+[deployment]
+run = ["sh", "-c", "pip install flask torch numpy soundfile librosa werkzeug pathlib && python app.py"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
