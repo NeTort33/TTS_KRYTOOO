@@ -23,10 +23,23 @@ class TTSEngine:
         self.model_info = model_data['model_info']
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        # Move model to device
+        # Move model to device and set to eval mode
         if self.model is not None:
-            self.model = self.model.to(self.device)
-            self.model.eval()
+            try:
+                # Check if model is a PyTorch module
+                if hasattr(self.model, 'to') and hasattr(self.model, 'eval'):
+                    self.model = self.model.to(self.device)
+                    self.model.eval()
+                elif isinstance(self.model, dict):
+                    # Model is a state dict - move tensors to device
+                    for key, value in self.model.items():
+                        if isinstance(value, torch.Tensor):
+                            self.model[key] = value.to(self.device)
+                    logger.info("Model state dict moved to device")
+                else:
+                    logger.warning(f"Unknown model type: {type(self.model)}")
+            except Exception as e:
+                logger.warning(f"Could not move model to device: {e}")
         
         logger.info(f"TTS Engine initialized on device: {self.device}")
     

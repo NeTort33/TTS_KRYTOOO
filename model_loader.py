@@ -59,12 +59,40 @@ class ModelLoader:
                 # Model weights only
                 model = checkpoint
             
-            # Try to create a model wrapper if it's just state dict
-            if isinstance(model, dict) and all(isinstance(k, str) for k in model.keys()):
-                # This is a state dict, create a simple wrapper
-                model = SimpleModelWrapper(model)
+            # Handle different model formats
+            if isinstance(model, dict):
+                # Check if this is a state dict by looking for tensor values
+                has_tensors = any(isinstance(v, torch.Tensor) for v in model.values() if v is not None)
+                has_weight_keys = any('weight' in k or 'bias' in k for k in model.keys())
+                
+                if has_tensors and has_weight_keys and all(isinstance(k, str) for k in model.keys()):
+                    # This looks like a state dict, create a simple wrapper
+                    try:
+                        model = SimpleModelWrapper(model)
+                        logger.info("Created model wrapper for state dict")
+                    except Exception as e:
+                        logger.warning(f"Could not create model wrapper: {e}")
+                        # Keep the original dict, we'll handle it in TTS engine
+                else:
+                    logger.info("Model is a dictionary but not a standard state dict")
             
-            model_info['parameters'] = sum(p.numel() for p in model.parameters() if hasattr(model, 'parameters'))
+            # Count parameters safely
+            try:
+                if hasattr(model, 'parameters') and callable(getattr(model, 'parameters')):
+                    model_info['parameters'] = sum(p.numel() for p in model.parameters())
+                elif isinstance(model, dict):
+                    # Count parameters in state dict
+                    total_params = 0
+                    for v in model.values():
+                        if isinstance(v, torch.Tensor):
+                            total_params += v.numel()
+                    model_info['parameters'] = total_params if total_params > 0 else 'Unknown'
+                else:
+                    model_info['parameters'] = 'Unknown'
+            except Exception as e:
+                logger.warning(f"Error counting parameters: {e}")
+                model_info['parameters'] = 'Unknown'
+            
             model_info['size_mb'] = Path(pth_path).stat().st_size / (1024 * 1024)
             
             logger.info(f"Model loaded successfully. Parameters: {model_info.get('parameters', 'Unknown')}")

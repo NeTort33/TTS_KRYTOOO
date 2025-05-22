@@ -1,0 +1,35 @@
+PS C:\Users\ndbya\Documents\kodd\TTS_KRYTOOO> & C:/Users/ndbya/AppData/Local/Microsoft/WindowsApps/python3.11.exe c:/Users/ndbya/Documents/kodd/TTS_KRYTOOO/app.py
+Запуск TTS приложения...
+PyTorch версия: 2.6.0+cu118
+CUDA доступна: True
+ * Serving Flask app 'app'
+ * Debug mode: off
+INFO:werkzeug:WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.31.30:5000
+INFO:werkzeug:Press CTRL+C to quit
+INFO:werkzeug:127.0.0.1 - - [23/May/2025 02:54:57] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [23/May/2025 02:54:58] "GET /static/script.js HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [23/May/2025 02:54:58] "GET /static/style.css HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [23/May/2025 02:54:59] "GET /model_status HTTP/1.1" 200 -
+ERROR:__main__:Необработанная ошибка: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+INFO:werkzeug:127.0.0.1 - - [23/May/2025 02:54:59] "GET /favicon.ico HTTP/1.1" 500 -
+INFO:utils:PTH файл валиден, размер: 52.7 MB
+WARNING:utils:Index файл может быть в неподдерживаемом формате
+INFO:utils:Валидация завершена: PTH=True, Index=False
+INFO:model_loader:ModelLoader initialized on device: cuda
+INFO:model_loader:Loading complete model...
+INFO:model_loader:Loading PyTorch model from: uploads\Oxxxymiron.pth
+ERROR:model_loader:Error loading PyTorch model: 'dict' object has no attribute 'dim'
+ERROR:model_loader:Failed to load PyTorch model
+INFO:werkzeug:127.0.0.1 - - [23/May/2025 02:56:27] "POST /upload_model HTTP/1.1" 500 -
+INFO:utils:PTH файл валиден, размер: 52.7 MB
+WARNING:utils:Index файл может быть в неподдерживаемом формате
+INFO:utils:Валидация завершена: PTH=True, Index=False
+INFO:model_loader:ModelLoader initialized on device: cuda
+INFO:model_loader:Loading complete model...
+INFO:model_loader:Loading PyTorch model from: uploads\Oxxxymiron.pth
+ERROR:model_loader:Error loading PyTorch model: 'dict' object has no attribute 'dim'
+ERROR:model_loader:Failed to load PyTorch model
+INFO:werkzeug:127.0.0.1 - - [23/May/2025 02:56:56] "POST /upload_model HTTP/1.1" 500 -

@@ -43,6 +43,11 @@ def index():
     """Main page"""
     return render_template('index.html')
 
+@app.route('/favicon.ico')
+def favicon():
+    """Favicon handler"""
+    return '', 204
+
 @app.route('/upload_model', methods=['POST'])
 def upload_model():
     """Upload and load voice model files"""
@@ -60,6 +65,10 @@ def upload_model():
         if pth_file.filename == '' or index_file.filename == '':
             return jsonify({'error': 'Файлы не выбраны'}), 400
         
+        # Check filenames exist
+        if not pth_file.filename or not index_file.filename:
+            return jsonify({'error': 'Имена файлов не определены'}), 400
+            
         if not (allowed_file(pth_file.filename) and allowed_file(index_file.filename)):
             return jsonify({'error': 'Неподдерживаемый формат файла'}), 400
         
