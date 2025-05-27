@@ -54,8 +54,11 @@ def upload_model():
     global current_model, tts_engine
     
     try:
+        logger.info("Received model upload request")
+        
         # Check if files are present
         if 'pth_file' not in request.files or 'index_file' not in request.files:
+            logger.error("Missing files in request")
             return jsonify({'error': 'Оба файла (.pth и .index) обязательны'}), 400
         
         pth_file = request.files['pth_file']

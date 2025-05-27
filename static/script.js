@@ -4,102 +4,139 @@ class TTSApp {
         this.modelLoaded = false;
         this.isGenerating = false;
         this.isUploading = false;
-        
+
         this.initializeElements();
         this.bindEvents();
         this.initializeSliders();
         this.checkModelStatus();
     }
-    
+
     initializeElements() {
         // Form elements
         this.modelUploadForm = document.getElementById('modelUploadForm');
         this.pthFileInput = document.getElementById('pthFile');
         this.indexFileInput = document.getElementById('indexFile');
         this.textInput = document.getElementById('textInput');
-        
+
         // Buttons
         this.uploadBtn = document.getElementById('uploadBtn');
         this.generateBtn = document.getElementById('generateBtn');
         this.playBtn = document.getElementById('playBtn');
         this.downloadBtn = document.getElementById('downloadBtn');
         this.generateNewBtn = document.getElementById('generateNewBtn');
-        
+
         // Progress bars
         this.uploadProgress = document.getElementById('uploadProgress');
         this.generateProgress = document.getElementById('generateProgress');
-        
+
         // Status and result elements
         this.modelStatus = document.getElementById('modelStatus');
         this.audioResult = document.getElementById('audioResult');
         this.noAudio = document.getElementById('noAudio');
         this.audioPlayer = document.getElementById('audioPlayer');
-        
+
         // Settings sliders
         this.pitchSlider = document.getElementById('pitchSlider');
         this.speedSlider = document.getElementById('speedSlider');
         this.volumeSlider = document.getElementById('volumeSlider');
         this.sampleRateSelect = document.getElementById('sampleRateSelect');
-        
+
         // Value displays
         this.pitchValue = document.getElementById('pitchValue');
         this.speedValue = document.getElementById('speedValue');
         this.volumeValue = document.getElementById('volumeValue');
         this.charCount = document.getElementById('charCount');
-        
+
         // Toast
         this.toast = document.getElementById('toast');
         this.toastBody = document.getElementById('toastBody');
         this.bsToast = new bootstrap.Toast(this.toast);
     }
-    
+
     bindEvents() {
-        // Model upload
-        this.modelUploadForm.addEventListener('submit', (e) => this.handleModelUpload(e));
-        
+        // Upload form submission
+        if (this.modelUploadForm) {
+            this.modelUploadForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.uploadModel();
+            });
+        }
+
+        // Upload button click
+        if (this.uploadBtn) {
+            this.uploadBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.uploadModel();
+            });
+        }
+
+        // Generate button
+        if (this.generateBtn) {
+            this.generateBtn.addEventListener('click', () => this.generateSpeech());
+        }
+
+        // Play button
+        if (this.playBtn) {
+            this.playBtn.addEventListener('click', () => this.playAudio());
+        }
+
+        // Download button
+        if (this.downloadBtn) {
+            this.downloadBtn.addEventListener('click', () => this.downloadAudio());
+        }
+
+        // Generate new button
+        if (this.generateNewBtn) {
+            this.generateNewBtn.addEventListener('click', () => this.resetForNewGeneration());
+        }
+
+        // File input changes
+        if (this.pthFileInput) {
+            this.pthFileInput.addEventListener('change', () => this.validateInputs());
+        }
+        if (this.indexFileInput) {
+            this.indexFileInput.addEventListener('change', () => this.validateInputs());
+        }
+
         // Text input
-        this.textInput.addEventListener('input', () => this.updateCharCount());
-        this.textInput.addEventListener('input', () => this.validateInputs());
-        
-        // Generation
-        this.generateBtn.addEventListener('click', () => this.generateSpeech());
-        
-        // Audio controls
-        this.playBtn.addEventListener('click', () => this.playAudio());
-        this.downloadBtn.addEventListener('click', () => this.downloadAudio());
-        this.generateNewBtn.addEventListener('click', () => this.resetForNewGeneration());
-        
-        // File inputs
-        this.pthFileInput.addEventListener('change', () => this.validateInputs());
-        this.indexFileInput.addEventListener('change', () => this.validateInputs());
+        if (this.textInput) {
+            this.textInput.addEventListener('input', () => this.updateCharCount());
+            this.textInput.addEventListener('input', () => this.validateInputs());
+        }
     }
-    
+
     initializeSliders() {
         // Pitch slider
-        this.pitchSlider.addEventListener('input', () => {
-            this.pitchValue.textContent = parseFloat(this.pitchSlider.value).toFixed(1);
-        });
-        
+        if (this.pitchSlider && this.pitchValue) {
+            this.pitchSlider.addEventListener('input', () => {
+                this.pitchValue.textContent = parseFloat(this.pitchSlider.value).toFixed(1);
+            });
+        }
+
         // Speed slider
-        this.speedSlider.addEventListener('input', () => {
-            this.speedValue.textContent = parseFloat(this.speedSlider.value).toFixed(1);
-        });
-        
+        if (this.speedSlider && this.speedValue) {
+            this.speedSlider.addEventListener('input', () => {
+                this.speedValue.textContent = parseFloat(this.speedSlider.value).toFixed(1);
+            });
+        }
+
         // Volume slider
-        this.volumeSlider.addEventListener('input', () => {
-            this.volumeValue.textContent = parseFloat(this.volumeSlider.value).toFixed(1);
-        });
-        
+        if (this.volumeSlider && this.volumeValue) {
+            this.volumeSlider.addEventListener('input', () => {
+                this.volumeValue.textContent = parseFloat(this.volumeSlider.value).toFixed(1);
+            });
+        }
+
         // Initialize values
         this.pitchValue.textContent = this.pitchSlider.value;
         this.speedValue.textContent = this.speedSlider.value;
         this.volumeValue.textContent = this.volumeSlider.value;
     }
-    
+
     updateCharCount() {
         const length = this.textInput.value.length;
         this.charCount.textContent = length;
-        
+
         // Update color based on length
         if (length > 800) {
             this.charCount.style.color = 'var(--bs-danger)';
@@ -109,22 +146,22 @@ class TTSApp {
             this.charCount.style.color = 'var(--bs-primary)';
         }
     }
-    
+
     validateInputs() {
         const hasText = this.textInput.value.trim().length > 0;
         const hasValidLength = this.textInput.value.length <= 1000;
-        
+
         // Check model status before enabling generate button
         this.checkModelStatus().then(() => {
             this.generateBtn.disabled = !this.modelLoaded || !hasText || !hasValidLength || this.isGenerating;
         });
     }
-    
+
     async checkModelStatus() {
         try {
             const response = await fetch('/model_status');
             const data = await response.json();
-            
+
             this.modelLoaded = data.loaded && data.ready;
             this.updateModelStatus();
             this.validateInputs();
@@ -132,7 +169,7 @@ class TTSApp {
             console.error('Error checking model status:', error);
         }
     }
-    
+
     updateModelStatus(message = null, type = null) {
         if (this.modelLoaded) {
             this.modelStatus.innerHTML = `
@@ -163,70 +200,68 @@ class TTSApp {
                 </div>
             `;
         }
-        
+
         // Reinitialize feather icons
         feather.replace();
     }
-    
-    async handleModelUpload(event) {
-        event.preventDefault();
-        
+
+    async uploadModel() {
         if (this.isUploading) return;
-        
-        const pthFile = this.pthFileInput.files[0];
-        const indexFile = this.indexFileInput.files[0];
-        
+
+        const pthFile = this.pthFileInput?.files[0];
+        const indexFile = this.indexFileInput?.files[0];
+
         if (!pthFile || !indexFile) {
             this.showToast('Выберите оба файла модели', 'error');
             return;
         }
-        
+
         // Validate file extensions
         if (!pthFile.name.toLowerCase().endsWith('.pth')) {
             this.showToast('PTH файл должен иметь расширение .pth', 'error');
             return;
         }
-        
+
         if (!indexFile.name.toLowerCase().endsWith('.index')) {
             this.showToast('Index файл должен иметь расширение .index', 'error');
             return;
         }
-        
+
         // Check file sizes
         const maxSize = 500 * 1024 * 1024; // 500MB
         if (pthFile.size > maxSize) {
             this.showToast('PTH файл слишком большой (максимум 500MB)', 'error');
             return;
         }
-        
+
         this.isUploading = true;
         this.uploadBtn.disabled = true;
         this.uploadProgress.style.display = 'block';
         this.updateModelStatus('Загрузка файлов модели...', 'loading');
-        
+
         try {
             const formData = new FormData();
             formData.append('pth_file', pthFile);
             formData.append('index_file', indexFile);
-            
+
             const response = await fetch('/upload_model', {
                 method: 'POST',
                 body: formData
             });
-            
+
             const data = await response.json();
-            
+
             if (response.ok && data.success) {
                 this.modelLoaded = true;
                 this.updateModelStatus(data.message, 'success');
                 this.showToast('Модель успешно загружена!', 'success');
-                
+
                 // Show model info if available
                 if (data.model_info) {
                     const info = data.model_info;
                     this.showToast(`Размер модели: ${info.model_size}`, 'info');
                 }
-                
+
                 // Recheck model status to ensure UI is updated
                 setTimeout(() => this.checkModelStatus(), 500);
             } else {
@@ -246,25 +281,25 @@ class TTSApp {
             this.validateInputs();
         }
     }
-    
+
     async generateSpeech() {
         if (this.isGenerating || !this.modelLoaded) return;
-        
+
         const text = this.textInput.value.trim();
         if (!text) {
             this.showToast('Введите текст для генерации', 'error');
             return;
         }
-        
+
         this.isGenerating = true;
         this.generateBtn.disabled = true;
         this.generateProgress.style.display = 'block';
-        
+
         // Update button text
         const originalHtml = this.generateBtn.innerHTML;
         this.generateBtn.innerHTML = '<i data-feather="loader" class="me-2 loading"></i>Генерация...';
         feather.replace();
-        
+
         try {
             const requestData = {
                 text: text,
@@ -273,7 +308,7 @@ class TTSApp {
                 volume: parseFloat(this.volumeSlider.value),
                 sample_rate: parseInt(this.sampleRateSelect.value)
             };
-            
+
             const response = await fetch('/generate_speech', {
                 method: 'POST',
                 headers: {
@@ -281,9 +316,9 @@ class TTSApp {
                 },
                 body: JSON.stringify(requestData)
             });
-            
+
             const data = await response.json();
-            
+
             if (response.ok && data.success) {
                 this.currentAudioFile = data.filename;
                 this.showAudioResult();
@@ -303,21 +338,21 @@ class TTSApp {
             feather.replace();
         }
     }
-    
+
     showAudioResult() {
         if (!this.currentAudioFile) return;
-        
+
         // Set audio source
         this.audioPlayer.src = `/play/${this.currentAudioFile}`;
-        
+
         // Show result section
         this.audioResult.style.display = 'block';
         this.noAudio.style.display = 'none';
-        
+
         // Scroll to result
         this.audioResult.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-    
+
     playAudio() {
         if (this.audioPlayer.src) {
             this.audioPlayer.play().catch(error => {
@@ -326,7 +361,7 @@ class TTSApp {
             });
         }
     }
-    
+
     downloadAudio() {
         if (this.currentAudioFile) {
             const link = document.createElement('a');
@@ -335,32 +370,32 @@ class TTSApp {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            
+
             this.showToast('Загрузка начата', 'info');
         }
     }
-    
+
     resetForNewGeneration() {
         this.currentAudioFile = null;
         this.audioResult.style.display = 'none';
         this.noAudio.style.display = 'block';
         this.audioPlayer.src = '';
-        
+
         // Focus on text input
         this.textInput.focus();
     }
-    
+
     showToast(message, type = 'info') {
         // Update toast content
         this.toastBody.textContent = message;
-        
+
         // Update toast header icon and color based on type
         const header = this.toast.querySelector('.toast-header');
         const icon = header.querySelector('i[data-feather]');
-        
+
         // Remove existing classes
         this.toast.classList.remove('text-bg-success', 'text-bg-danger', 'text-bg-warning', 'text-bg-info');
-        
+
         switch (type) {
             case 'success':
                 icon.setAttribute('data-feather', 'check-circle');
@@ -378,7 +413,7 @@ class TTSApp {
                 icon.setAttribute('data-feather', 'info');
                 this.toast.classList.add('text-bg-info');
         }
-        
+
         feather.replace();
         this.bsToast.show();
     }
@@ -392,24 +427,24 @@ document.addEventListener('DOMContentLoaded', () => {
 // Handle file drag and drop
 document.addEventListener('DOMContentLoaded', () => {
     const fileInputs = document.querySelectorAll('input[type="file"]');
-    
+
     fileInputs.forEach(input => {
         const parent = input.closest('.mb-3');
-        
+
         parent.addEventListener('dragover', (e) => {
             e.preventDefault();
             parent.classList.add('dragover');
         });
-        
+
         parent.addEventListener('dragleave', (e) => {
             e.preventDefault();
             parent.classList.remove('dragover');
         });
-        
+
         parent.addEventListener('drop', (e) => {
             e.preventDefault();
             parent.classList.remove('dragover');
-            
+
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 input.files = files;
@@ -429,7 +464,7 @@ document.addEventListener('keydown', (e) => {
             generateBtn.click();
         }
     }
-    
+
     // Escape to reset
     if (e.key === 'Escape') {
         const generateNewBtn = document.getElementById('generateNewBtn');

@@ -1,3 +1,5 @@
+
+import os
 import torch
 import numpy as np
 from pathlib import Path
@@ -7,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def validate_model_files(pth_path, index_path):
     """
-    Validate model files (.pth and .index)
+    Validate uploaded model files
     
     Args:
         pth_path: Path to .pth file
@@ -19,19 +21,17 @@ def validate_model_files(pth_path, index_path):
     result = {
         'valid': False,
         'error': None,
-        'pth_valid': False,
-        'index_valid': False,
         'model_size': None
     }
     
     try:
         # Check if files exist
         if not Path(pth_path).exists():
-            result['error'] = f"PTH файл не найден: {pth_path}"
+            result['error'] = 'Файл .pth не найден'
             return result
-        
+            
         if not Path(index_path).exists():
-            result['error'] = f"Index файл не найден: {index_path}"
+            result['error'] = 'Файл .index не найден'
             return result
         
         # Check file sizes
@@ -39,118 +39,56 @@ def validate_model_files(pth_path, index_path):
         index_size = Path(index_path).stat().st_size
         
         if pth_size == 0:
-            result['error'] = "PTH файл пустой"
+            result['error'] = 'Файл .pth пустой'
+            return result
+            
+        if pth_size > 500 * 1024 * 1024:  # 500MB limit
+            result['error'] = 'Файл .pth слишком большой (максимум 500MB)'
             return result
         
-        if pth_size > 2 * 1024 * 1024 * 1024:  # 2GB limit
-            result['error'] = "PTH файл слишком большой (>2GB)"
-            return result
-        
-        # Validate PTH file
+        # Try to load .pth file to validate it's a valid PyTorch model
         try:
-            checkpoint = torch.load(pth_path, map_location='cpu')
-            result['pth_valid'] = True
-            result['model_size'] = f"{pth_size / (1024*1024):.1f} MB"
-            logger.info(f"PTH файл валиден, размер: {result['model_size']}")
-        except Exception as e:
-            result['error'] = f"Некорректный PTH файл: {str(e)}"
-            return result
-        
-        # Validate index file (less strict)
-        try:
-            # Try to read index file in different formats
-            index_valid = False
+            device = torch.device('cpu')  # Use CPU for validation
+            checkpoint = torch.load(pth_path, map_location=device)
             
-            # Try pickle
-            try:
-                import pickle
-                with open(index_path, 'rb') as f:
-                    pickle.load(f)
-                index_valid = True
-            except:
-                pass
-            
-            # Try numpy
-            if not index_valid:
-                try:
-                    np.load(index_path, allow_pickle=True)
-                    index_valid = True
-                except:
-                    pass
-            
-            # Try torch
-            if not index_valid:
-                try:
-                    torch.load(index_path, map_location='cpu')
-                    index_valid = True
-                except:
-                    pass
-            
-            # Try text format
-            if not index_valid:
-                try:
-                    with open(index_path, 'r', encoding='utf-8') as f:
-                        f.read(100)  # Try to read first 100 chars
-                    index_valid = True
-                except:
-                    pass
-            
-            result['index_valid'] = index_valid
-            if not index_valid:
-                logger.warning("Index файл может быть в неподдерживаемом формате")
+            # Basic validation - check if it contains expected structures
+            if not isinstance(checkpoint, (dict, torch.nn.Module)):
+                result['error'] = 'Неверный формат файла .pth'
+                return result
+                
+            result['model_size'] = format_file_size(pth_size)
             
         except Exception as e:
-            logger.warning(f"Проблема с index файлом: {str(e)}")
-            result['index_valid'] = False
+            result['error'] = f'Не удается загрузить файл .pth: {str(e)}'
+            return result
         
-        # Overall validation
-        result['valid'] = result['pth_valid']  # Index is optional
+        # Validate index file (basic check)
+        try:
+            with open(index_path, 'rb') as f:
+                # Try to read first few bytes
+                header = f.read(100)
+                if len(header) == 0:
+                    result['error'] = 'Файл .index пустой'
+                    return result
+        except Exception as e:
+            result['error'] = f'Не удается прочитать файл .index: {str(e)}'
+            return result
         
-        logger.info(f"Валидация завершена: PTH={result['pth_valid']}, Index={result['index_valid']}")
+        result['valid'] = True
         return result
         
     except Exception as e:
-        result['error'] = f"Ошибка валидации: {str(e)}"
-        logger.error(result['error'])
+        result['error'] = f'Ошибка валидации: {str(e)}'
         return result
 
 def get_supported_audio_formats():
     """
-    Get list of supported audio formats for export
+    Get list of supported audio formats
     
     Returns:
-        List of supported formats
+        List of supported audio formats
     """
-    return [
-        {'format': 'wav', 'description': 'WAV (высокое качество)', 'extension': '.wav'},
-        {'format': 'mp3', 'description': 'MP3 (сжатый)', 'extension': '.mp3'},
-        {'format': 'flac', 'description': 'FLAC (без потерь)', 'extension': '.flac'},
-        {'format': 'ogg', 'description': 'OGG Vorbis', 'extension': '.ogg'}
-    ]
-
-def sanitize_filename(filename):
-    """
-    Sanitize filename for safe file operations
-    
-    Args:
-        filename: Input filename
-        
-    Returns:
-        Sanitized filename
-    """
-    import re
-    
-    # Remove or replace unsafe characters
-    filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
-    filename = re.sub(r'\s+', '_', filename)
-    filename = filename.strip('._')
-    
-    # Limit length
-    if len(filename) > 100:
-        name, ext = Path(filename).stem, Path(filename).suffix
-        filename = name[:100-len(ext)] + ext
-    
-    return filename
+    return ['wav', 'mp3', 'flac', 'ogg']
 
 def format_file_size(size_bytes):
     """
@@ -163,7 +101,7 @@ def format_file_size(size_bytes):
         Formatted size string
     """
     if size_bytes == 0:
-        return "0 B"
+        return "0B"
     
     size_names = ["B", "KB", "MB", "GB"]
     i = 0
@@ -210,125 +148,21 @@ def check_system_requirements():
         
         # Check disk space
         disk = psutil.disk_usage('.')
+        requirements['disk_total_gb'] = disk.total / (1024**3)
         requirements['disk_free_gb'] = disk.free / (1024**3)
-        requirements['disk_space_available'] = disk.free > 5 * 1024**3  # At least 5GB
+        requirements['disk_space_available'] = disk.free > 1024**3  # At least 1GB
         
     except ImportError:
         pass
     
     return requirements
 
-def log_model_info(model_data):
-    """
-    Log detailed information about loaded model
-    
-    Args:
-        model_data: Model data dictionary
-    """
-    if not model_data:
-        return
-    
-    logger.info("=== Model Information ===")
-    logger.info(f"PTH Path: {model_data.get('pth_path', 'Unknown')}")
-    logger.info(f"Index Path: {model_data.get('index_path', 'Unknown')}")
-    
-    model_info = model_data.get('model_info', {})
-    logger.info(f"Model Size: {model_info.get('size_mb', 'Unknown')} MB")
-    logger.info(f"Parameters: {model_info.get('parameters', 'Unknown')}")
-    
-    if 'epoch' in model_info:
-        logger.info(f"Training Epoch: {model_info['epoch']}")
-    
-    if 'version' in model_info:
-        logger.info(f"Model Version: {model_info['version']}")
-    
-    index_data = model_data.get('index_data', {})
-    if index_data:
-        logger.info(f"Index Data Type: {type(index_data).__name__}")
-        if isinstance(index_data, dict):
-            logger.info(f"Index Keys: {len(index_data)} entries")
-        elif hasattr(index_data, 'shape'):
-            logger.info(f"Index Shape: {index_data.shape}")
-    
-    logger.info("========================")
-import os
-import torch
-import logging
-from pathlib import Path
-
-logger = logging.getLogger(__name__)
-
-def validate_model_files(pth_path, index_path):
-    """
-    Validate uploaded model files
-    
-    Args:
-        pth_path: Path to .pth file
-        index_path: Path to .index file
-        
-    Returns:
-        dict: Validation result with 'valid' boolean and optional 'error' message
-    """
-    try:
-        # Check if files exist
-        if not Path(pth_path).exists():
-            return {'valid': False, 'error': 'PTH файл не найден'}
-        
-        if not Path(index_path).exists():
-            return {'valid': False, 'error': 'Index файл не найден'}
-        
-        # Check file sizes
-        pth_size = Path(pth_path).stat().st_size
-        index_size = Path(index_path).stat().st_size
-        
-        if pth_size == 0:
-            return {'valid': False, 'error': 'PTH файл пустой'}
-        
-        if pth_size > 2 * 1024 * 1024 * 1024:  # 2GB limit
-            return {'valid': False, 'error': 'PTH файл слишком большой (максимум 2GB)'}
-        
-        # Try to load PTH file to validate it's a valid PyTorch model
-        try:
-            checkpoint = torch.load(pth_path, map_location='cpu')
-            logger.info("PTH file validation successful")
-        except Exception as e:
-            return {'valid': False, 'error': f'Некорректный PTH файл: {str(e)}'}
-        
-        # Format file sizes for display
-        pth_size_mb = pth_size / (1024 * 1024)
-        index_size_mb = index_size / (1024 * 1024)
-        
-        if pth_size_mb > 1024:
-            model_size = f"{pth_size_mb/1024:.1f} GB"
-        else:
-            model_size = f"{pth_size_mb:.1f} MB"
-        
-        return {
-            'valid': True,
-            'model_size': model_size,
-            'pth_size_mb': pth_size_mb,
-            'index_size_mb': index_size_mb
-        }
-        
-    except Exception as e:
-        logger.error(f"Error validating model files: {str(e)}")
-        return {'valid': False, 'error': f'Ошибка валидации: {str(e)}'}
-
-def get_supported_audio_formats():
-    """
-    Get list of supported audio formats
-    
-    Returns:
-        list: Supported audio format extensions
-    """
-    return ['wav', 'mp3', 'flac', 'ogg']
-
 def cleanup_old_files(directory, max_age_hours=24):
     """
-    Clean up old files from a directory
+    Clean up old files from directory
     
     Args:
-        directory: Directory path to clean
+        directory: Directory to clean
         max_age_hours: Maximum age of files to keep in hours
     """
     try:
@@ -352,4 +186,137 @@ def cleanup_old_files(directory, max_age_hours=24):
                         logger.warning(f"Could not delete old file {file_path}: {e}")
                         
     except Exception as e:
-        logger.error(f"Error during cleanup: {str(e)}")
+        logger.error(f"Error cleaning up old files: {e}")
+
+def ensure_directories_exist():
+    """
+    Ensure required directories exist
+    """
+    directories = ['uploads', 'output', 'static', 'templates']
+    
+    for directory in directories:
+        Path(directory).mkdir(exist_ok=True)
+        logger.info(f"Directory ensured: {directory}")
+
+def validate_text_input(text, max_length=1000):
+    """
+    Validate text input for TTS generation
+    
+    Args:
+        text: Input text string
+        max_length: Maximum allowed length
+        
+    Returns:
+        Dictionary with validation results
+    """
+    result = {
+        'valid': False,
+        'error': None,
+        'cleaned_text': None
+    }
+    
+    try:
+        if not text or not isinstance(text, str):
+            result['error'] = 'Текст не может быть пустым'
+            return result
+        
+        # Clean text
+        cleaned_text = text.strip()
+        
+        if not cleaned_text:
+            result['error'] = 'Текст не может быть пустым'
+            return result
+        
+        if len(cleaned_text) > max_length:
+            result['error'] = f'Текст слишком длинный (максимум {max_length} символов)'
+            return result
+        
+        # Basic character validation
+        allowed_chars = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,!?;:-()[]{}"\'\n\t')
+        allowed_chars.update('абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ')
+        
+        invalid_chars = set(cleaned_text) - allowed_chars
+        if invalid_chars:
+            logger.warning(f"Text contains invalid characters: {invalid_chars}")
+            # Remove invalid characters instead of rejecting
+            cleaned_text = ''.join(c for c in cleaned_text if c in allowed_chars)
+        
+        result['valid'] = True
+        result['cleaned_text'] = cleaned_text
+        return result
+        
+    except Exception as e:
+        result['error'] = f'Ошибка валидации текста: {str(e)}'
+        return result
+
+def get_audio_info(file_path):
+    """
+    Get information about audio file
+    
+    Args:
+        file_path: Path to audio file
+        
+    Returns:
+        Dictionary with audio information
+    """
+    try:
+        import soundfile as sf
+        
+        info = sf.info(file_path)
+        
+        return {
+            'duration': info.duration,
+            'sample_rate': info.samplerate,
+            'channels': info.channels,
+            'format': info.format,
+            'subtype': info.subtype,
+            'frames': info.frames
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting audio info: {e}")
+        return {}
+
+def log_system_info():
+    """Log system information for debugging"""
+    try:
+        requirements = check_system_requirements()
+        
+        logger.info("=== System Information ===")
+        logger.info(f"PyTorch available: {requirements.get('torch_available', False)}")
+        logger.info(f"CUDA available: {requirements.get('cuda_available', False)}")
+        logger.info(f"RAM available: {requirements.get('ram_available_gb', 'Unknown')} GB")
+        logger.info(f"Disk space available: {requirements.get('disk_free_gb', 'Unknown')} GB")
+        
+        if requirements.get('cuda_available'):
+            logger.info(f"CUDA memory: {requirements.get('cuda_memory_gb', 'Unknown')} GB")
+        
+        # Log Python packages
+        try:
+            import torch
+            logger.info(f"PyTorch version: {torch.__version__}")
+        except ImportError:
+            logger.warning("PyTorch not available")
+        
+        try:
+            import numpy
+            logger.info(f"NumPy version: {numpy.__version__}")
+        except ImportError:
+            logger.warning("NumPy not available")
+        
+        try:
+            import soundfile
+            logger.info(f"SoundFile version: {soundfile.__version__}")
+        except ImportError:
+            logger.warning("SoundFile not available")
+        
+        try:
+            import librosa
+            logger.info(f"Librosa version: {librosa.__version__}")
+        except ImportError:
+            logger.warning("Librosa not available")
+        
+        logger.info("=== End System Information ===")
+        
+    except Exception as e:
+        logger.error(f"Error logging system info: {e}")
