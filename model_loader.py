@@ -247,3 +247,108 @@ class SimpleModelWrapper(torch.nn.Module):
             except:
                 continue
         return x
+import torch
+import numpy as np
+from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
+
+class ModelLoader:
+    """Model loader for TTS voice models"""
+    
+    def __init__(self):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        logger.info(f"Model loader initialized with device: {self.device}")
+    
+    def load_model(self, pth_path, index_path):
+        """
+        Load voice model from .pth and .index files
+        
+        Args:
+            pth_path: Path to .pth model file
+            index_path: Path to .index file
+            
+        Returns:
+            Dictionary containing model data or None if failed
+        """
+        try:
+            logger.info(f"Loading model from {pth_path}")
+            
+            # Load PyTorch model
+            checkpoint = torch.load(pth_path, map_location=self.device)
+            
+            # Load index data
+            index_data = self._load_index_file(index_path)
+            
+            # Extract model information
+            model_info = self._extract_model_info(checkpoint)
+            
+            model_data = {
+                'model': checkpoint,
+                'index_data': index_data,
+                'model_info': model_info,
+                'device': self.device
+            }
+            
+            logger.info("Model loaded successfully")
+            return model_data
+            
+        except Exception as e:
+            logger.error(f"Failed to load model: {str(e)}")
+            return None
+    
+    def _load_index_file(self, index_path):
+        """Load index file data"""
+        try:
+            with open(index_path, 'rb') as f:
+                # Basic loading - read as binary data
+                index_data = f.read()
+            
+            logger.info(f"Index file loaded: {len(index_data)} bytes")
+            return index_data
+            
+        except Exception as e:
+            logger.error(f"Failed to load index file: {str(e)}")
+            return None
+    
+    def _extract_model_info(self, checkpoint):
+        """Extract model information from checkpoint"""
+        try:
+            info = {
+                'type': 'unknown',
+                'parameters': 0,
+                'architecture': 'custom'
+            }
+            
+            if isinstance(checkpoint, dict):
+                # Count parameters if state dict
+                total_params = 0
+                for key, value in checkpoint.items():
+                    if isinstance(value, torch.Tensor):
+                        total_params += value.numel()
+                
+                info['parameters'] = total_params
+                info['type'] = 'state_dict'
+                
+                # Try to identify architecture from keys
+                keys = list(checkpoint.keys())
+                if any('rnn' in key.lower() for key in keys):
+                    info['architecture'] = 'RNN-based'
+                elif any('transformer' in key.lower() for key in keys):
+                    info['architecture'] = 'Transformer-based'
+                elif any('conv' in key.lower() for key in keys):
+                    info['architecture'] = 'CNN-based'
+            
+            elif hasattr(checkpoint, 'parameters'):
+                # PyTorch model
+                total_params = sum(p.numel() for p in checkpoint.parameters())
+                info['parameters'] = total_params
+                info['type'] = 'model'
+            
+            logger.info(f"Model info extracted: {info}")
+            return info
+            
+        except Exception as e:
+            logger.warning(f"Could not extract model info: {str(e)}")
+            return {'type': 'unknown', 'parameters': 0, 'architecture': 'unknown'}

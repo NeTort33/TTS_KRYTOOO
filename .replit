@@ -5,7 +5,7 @@ channel = "stable-24_05"
 packages = ["ffmpeg-full", "libsndfile"]
 
 [workflows]
-runButton = "Project"
+runButton = "TTS App"
 
 [[workflows.workflow]]
 name = "Project"
@@ -24,6 +24,15 @@ author = "agent"
 task = "shell.exec"
 args = "pip install flask torch numpy soundfile librosa werkzeug pathlib && python app.py"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = "TTS App"
+author = 42624027
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python app.py"
 
 [deployment]
 run = ["sh", "-c", "pip install flask torch numpy soundfile librosa werkzeug pathlib && python app.py"]

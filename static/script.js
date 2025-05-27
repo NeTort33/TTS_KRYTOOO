@@ -160,13 +160,22 @@ class TTSApp {
     async checkModelStatus() {
         try {
             const response = await fetch('/model_status');
-            const data = await response.json();
-
-            this.modelLoaded = data.loaded && data.ready;
-            this.updateModelStatus();
-            this.validateInputs();
+            if (response.ok) {
+                const data = await response.json();
+                this.modelLoaded = data.loaded && data.ready;
+                this.updateModelStatus();
+                this.validateInputs();
+            } else {
+                console.error('Model status check failed:', response.status);
+                this.modelLoaded = false;
+                this.updateModelStatus();
+                this.validateInputs();
+            }
         } catch (error) {
             console.error('Error checking model status:', error);
+            this.modelLoaded = false;
+            this.updateModelStatus();
+            this.validateInputs();
         }
     }
 
@@ -262,8 +271,12 @@ class TTSApp {
                     this.showToast(`Размер модели: ${info.model_size}`, 'info');
                 }
 
+                // Clear file inputs to allow re-upload
+                this.pthFileInput.value = '';
+                this.indexFileInput.value = '';
+
                 // Recheck model status to ensure UI is updated
-                setTimeout(() => this.checkModelStatus(), 500);
+                setTimeout(() => this.checkModelStatus(), 1000);
             } else {
                 this.modelLoaded = false;
                 this.updateModelStatus(data.error, 'error');
