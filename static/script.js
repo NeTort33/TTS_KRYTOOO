@@ -163,18 +163,24 @@ class TTSApp {
             if (response.ok) {
                 const data = await response.json();
                 this.modelLoaded = data.loaded && data.ready;
-                this.updateModelStatus();
+                
+                if (this.modelLoaded) {
+                    this.updateModelStatus('Модель загружена и готова к использованию', 'success');
+                } else {
+                    this.updateModelStatus('Загрузите модель для начала работы', 'warning');
+                }
+                
                 this.validateInputs();
             } else {
                 console.error('Model status check failed:', response.status);
                 this.modelLoaded = false;
-                this.updateModelStatus();
+                this.updateModelStatus('Ошибка проверки статуса модели', 'error');
                 this.validateInputs();
             }
         } catch (error) {
             console.error('Error checking model status:', error);
             this.modelLoaded = false;
-            this.updateModelStatus();
+            this.updateModelStatus('Нет соединения с сервером', 'error');
             this.validateInputs();
         }
     }

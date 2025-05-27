@@ -213,9 +213,31 @@ def model_status():
     """Get current model status"""
     global current_model, tts_engine
     
+    # More thorough check for model status
+    is_loaded = False
+    is_ready = False
+    
+    try:
+        # Check if model is actually loaded and valid
+        if current_model is not None:
+            # Verify model has required components
+            if ('model' in current_model and 
+                current_model['model'] is not None and
+                'model_info' in current_model):
+                is_loaded = True
+        
+        # Check if TTS engine is properly initialized
+        if tts_engine is not None and hasattr(tts_engine, 'model'):
+            is_ready = True
+            
+    except Exception as e:
+        logger.error(f"Error checking model status: {str(e)}")
+        is_loaded = False
+        is_ready = False
+    
     return jsonify({
-        'loaded': current_model is not None,
-        'ready': tts_engine is not None
+        'loaded': is_loaded,
+        'ready': is_ready
     })
 
 @app.errorhandler(413)
