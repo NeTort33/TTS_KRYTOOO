@@ -95,12 +95,18 @@ def upload_model():
             return jsonify({'error': 'Не удалось загрузить модель'}), 500
         
         # Initialize TTS engine
-        tts_engine = TTSEngine(current_model)
+        try:
+            tts_engine = TTSEngine(current_model)
+            logger.info(f"TTS Engine успешно инициализирован")
+        except Exception as e:
+            logger.error(f"Ошибка инициализации TTS Engine: {str(e)}")
+            current_model = None
+            return jsonify({'error': f'Ошибка инициализации TTS: {str(e)}'}), 500
         
         logger.info(f"Модель успешно загружена: {pth_filename}")
         return jsonify({
             'success': True, 
-            'message': 'Модель успешно загружена',
+            'message': 'Модель успешно загружена и готова к использованию',
             'model_info': {
                 'pth_file': pth_filename,
                 'index_file': index_filename,

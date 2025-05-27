@@ -114,7 +114,10 @@ class TTSApp {
         const hasText = this.textInput.value.trim().length > 0;
         const hasValidLength = this.textInput.value.length <= 1000;
         
-        this.generateBtn.disabled = !this.modelLoaded || !hasText || !hasValidLength || this.isGenerating;
+        // Check model status before enabling generate button
+        this.checkModelStatus().then(() => {
+            this.generateBtn.disabled = !this.modelLoaded || !hasText || !hasValidLength || this.isGenerating;
+        });
     }
     
     async checkModelStatus() {
@@ -223,6 +226,9 @@ class TTSApp {
                     const info = data.model_info;
                     this.showToast(`Размер модели: ${info.model_size}`, 'info');
                 }
+                
+                // Recheck model status to ensure UI is updated
+                setTimeout(() => this.checkModelStatus(), 500);
             } else {
                 this.modelLoaded = false;
                 this.updateModelStatus(data.error, 'error');

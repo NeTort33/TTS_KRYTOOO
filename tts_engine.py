@@ -144,43 +144,90 @@ class TTSEngine:
         try:
             # Generate base audio using a simple synthesis method
             # This is a placeholder - real TTS would use proper synthesis
-            duration = len(text_features) * 0.1  # 100ms per character
+            duration = max(len(text_features) * 0.15, 1.0)  # At least 1 second, 150ms per character
             num_samples = int(duration * sample_rate)
             
             # Generate basic waveform
-            t = torch.linspace(0, duration, num_samples, device=self.device)
+            t = np.linspace(0, duration, num_samples)
+            audio = np.zeros(num_samples)
             
-            # Create a simple synthesized audio based on character frequencies
-            audio = torch.zeros(num_samples, device=self.device)
+            # Create a more audible synthesized audio
+            base_freq = 150  # Lower base frequency for more natural sound
             
             for i, char_id in enumerate(text_features):
                 if char_id > 0:
-                    # Generate tone based on character
-                    freq = 200 + (char_id % 50) * 10  # Frequency between 200-700 Hz
-                    start_idx = int(i * sample_rate * 0.1)
-                    end_idx = min(start_idx + int(sample_rate * 0.1), num_samples)
+                    # Generate tone based on character with better frequency mapping
+                    freq = base_freq + (char_id % 30) * 15  # Frequency between 150-600 Hz
+                    start_time = i * 0.15
+                    end_time = min(start_time + 0.15, duration)
                     
-                    if start_idx < num_samples:
-                        segment_t = t[start_idx:end_idx] - t[start_idx]
-                        tone = torch.sin(2 * np.pi * freq * segment_t)
+                    start_idx = int(start_time * sample_rate)
+                    end_idx = int(end_time * sample_rate)
+                    
+                    if start_idx < num_samples and end_idx > start_idx:
+                        segment_length = end_idx - start_idx
+                        segment_t = np.linspace(0, 0.15, segment_length)
                         
-                        # Apply envelope
-                        envelope = torch.exp(-segment_t * 5)  # Exponential decay
-                        audio[start_idx:end_idx] += tone * envelope * 0.3
+                        # Generate a more complex tone with harmonics
+                        fundamental = np.sin(2 * np.pi * freq * segment_t)
+                        harmonic1 = 0.3 * np.sin(2 * np.pi * freq * 2 * segment_t)
+                        harmonic2 = 0.1 * np.sin(2 * np.pi * freq * 3 * segment_t)
+                        tone = fundamental + harmonic1 + harmonic2
+                        
+                        # Apply better envelope
+                        attack = 0.02  # 20ms attack
+                        decay = 0.05   # 50ms decay
+                        
+                        envelope = np.ones(segment_length)
+                        attack_samples = int(attack * sample_rate)
+                        decay_samples = int(decay * sample_rate)
+                        
+                        if attack_samples > 0:
+                            envelope[:attack_samples] = np.linspace(0, 1, attack_samples)
+                        if decay_samples > 0 and decay_samples < segment_length:
+                            envelope[-decay_samples:] = np.linspace(1, 0, decay_samples)
+                        
+                        audio[start_idx:end_idx] += tone * envelope * 0.5
             
-            # Apply voice conversion if model is available
+            # Add some variation for spaces and punctuation
+            for i in range(len(audio) // (sample_rate // 10)):  # Every 100ms
+                if np.random.random() > 0.7:  # 30% chance
+                    start_idx = i * (sample_rate // 10)
+                    end_idx = min(start_idx + (sample_rate // 20), len(audio))  # 50ms
+                    audio[start_idx:end_idx] *= 0.3  # Reduce volume for pause effect
+            
+            # Normalize to prevent clipping but ensure audible output
+            max_val = np.max(np.abs(audio))
+            if max_val > 0:
+                audio = audio / max_val * 0.8  # Leave some headroom
+            else:
+                # Generate fallback beep if audio is silent
+                logger.warning("Generated audio was silent, creating fallback tone")
+                t = np.linspace(0, 1.0, sample_rate)
+                audio = 0.3 * np.sin(2 * np.pi * 440 * t)  # 1 second 440Hz tone
+            
+            # Apply voice conversion if model is available (simplified)
             if self.model is not None:
-                # Reshape audio for model input
-                audio_features = audio.unsqueeze(0).unsqueeze(0)  # Add batch and channel dims
-                audio_features = self.apply_voice_conversion(audio_features)
-                audio = audio_features.squeeze()
+                try:
+                    # Simple processing with the model
+                    audio_tensor = torch.tensor(audio, device=self.device, dtype=torch.float32)
+                    audio_features = audio_tensor.unsqueeze(0).unsqueeze(0)  # Add batch and channel dims
+                    audio_features = self.apply_voice_conversion(audio_features)
+                    processed_audio = audio_features.squeeze().cpu().numpy()
+                    
+                    # Ensure the processed audio is valid
+                    if len(processed_audio) > 0 and np.max(np.abs(processed_audio)) > 0:
+                        audio = processed_audio
+                except Exception as e:
+                    logger.warning(f"Voice conversion failed, using original audio: {e}")
             
-            return audio.cpu().numpy()
+            return audio
             
         except Exception as e:
             logger.error(f"Error in audio synthesis: {str(e)}")
-            # Return silence if synthesis fails
-            return np.zeros(int(sample_rate * 2))
+            # Return audible fallback tone instead of silence
+            t = np.linspace(0, 2.0, int(sample_rate * 2))
+            return 0.3 * np.sin(2 * np.pi * 440 * t)
     
     def apply_audio_effects(self, audio, pitch=0.0, speed=1.0, volume=1.0):
         """

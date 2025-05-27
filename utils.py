@@ -251,3 +251,105 @@ def log_model_info(model_data):
             logger.info(f"Index Shape: {index_data.shape}")
     
     logger.info("========================")
+import os
+import torch
+import logging
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+def validate_model_files(pth_path, index_path):
+    """
+    Validate uploaded model files
+    
+    Args:
+        pth_path: Path to .pth file
+        index_path: Path to .index file
+        
+    Returns:
+        dict: Validation result with 'valid' boolean and optional 'error' message
+    """
+    try:
+        # Check if files exist
+        if not Path(pth_path).exists():
+            return {'valid': False, 'error': 'PTH файл не найден'}
+        
+        if not Path(index_path).exists():
+            return {'valid': False, 'error': 'Index файл не найден'}
+        
+        # Check file sizes
+        pth_size = Path(pth_path).stat().st_size
+        index_size = Path(index_path).stat().st_size
+        
+        if pth_size == 0:
+            return {'valid': False, 'error': 'PTH файл пустой'}
+        
+        if pth_size > 2 * 1024 * 1024 * 1024:  # 2GB limit
+            return {'valid': False, 'error': 'PTH файл слишком большой (максимум 2GB)'}
+        
+        # Try to load PTH file to validate it's a valid PyTorch model
+        try:
+            checkpoint = torch.load(pth_path, map_location='cpu')
+            logger.info("PTH file validation successful")
+        except Exception as e:
+            return {'valid': False, 'error': f'Некорректный PTH файл: {str(e)}'}
+        
+        # Format file sizes for display
+        pth_size_mb = pth_size / (1024 * 1024)
+        index_size_mb = index_size / (1024 * 1024)
+        
+        if pth_size_mb > 1024:
+            model_size = f"{pth_size_mb/1024:.1f} GB"
+        else:
+            model_size = f"{pth_size_mb:.1f} MB"
+        
+        return {
+            'valid': True,
+            'model_size': model_size,
+            'pth_size_mb': pth_size_mb,
+            'index_size_mb': index_size_mb
+        }
+        
+    except Exception as e:
+        logger.error(f"Error validating model files: {str(e)}")
+        return {'valid': False, 'error': f'Ошибка валидации: {str(e)}'}
+
+def get_supported_audio_formats():
+    """
+    Get list of supported audio formats
+    
+    Returns:
+        list: Supported audio format extensions
+    """
+    return ['wav', 'mp3', 'flac', 'ogg']
+
+def cleanup_old_files(directory, max_age_hours=24):
+    """
+    Clean up old files from a directory
+    
+    Args:
+        directory: Directory path to clean
+        max_age_hours: Maximum age of files to keep in hours
+    """
+    try:
+        import time
+        
+        directory = Path(directory)
+        if not directory.exists():
+            return
+        
+        current_time = time.time()
+        max_age_seconds = max_age_hours * 3600
+        
+        for file_path in directory.iterdir():
+            if file_path.is_file():
+                file_age = current_time - file_path.stat().st_mtime
+                if file_age > max_age_seconds:
+                    try:
+                        file_path.unlink()
+                        logger.info(f"Cleaned up old file: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"Could not delete old file {file_path}: {e}")
+                        
+    except Exception as e:
+        logger.error(f"Error during cleanup: {str(e)}")
